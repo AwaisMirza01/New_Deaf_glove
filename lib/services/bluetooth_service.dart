@@ -14,14 +14,16 @@ class BluetoothService extends GetxService {
   Stream<String> get receivedDataStream => _receivedData.stream;
   bool get isConnected => _isConnected.value;
 
-  Future<void> initialize() async {
+  Future<BluetoothService> initialize() async {
     try {
       final devices = await FlutterBluetoothSerial.instance.getBondedDevices();
       if (devices.isNotEmpty) {
         await connectToDevice(devices.first.address);
       }
+      return this;
     } catch (e) {
       logger.e('Bluetooth initialization error: $e');
+      rethrow;
     }
   }
 
