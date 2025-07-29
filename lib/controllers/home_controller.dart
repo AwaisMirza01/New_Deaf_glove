@@ -26,12 +26,12 @@ class HomeController extends GetxController {
   void onInit() {
     super.onInit();
     _audioPlayer = AudioPlayer();
-    bluetoothService.initialize();
     _setupBluetoothListener();
   }
 
   void _setupBluetoothListener() {
     bluetoothService.receivedDataStream.listen((data) {
+      print('Controller received: "$data"');
       _handleReceivedData(data);
     });
   }

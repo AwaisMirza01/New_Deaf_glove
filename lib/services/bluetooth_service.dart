@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:get/get.dart';
 import 'dart:typed_data';
@@ -8,11 +10,13 @@ final logger = Logger();
 
 class BluetoothService extends GetxService {
   BluetoothConnection? connection;
-  final _receivedData = ''.obs;
+  final StreamController<String> _receivedDataController = StreamController<String>.broadcast();
   final _isConnected = false.obs;
 
-  Stream<String> get receivedDataStream => _receivedData.stream;
+  Stream<String> get receivedDataStream => _receivedDataController.stream;
   bool get isConnected => _isConnected.value;
+
+  String _buffer = '';
 
   Future<BluetoothService> initialize() async {
     try {
@@ -22,29 +26,52 @@ class BluetoothService extends GetxService {
       }
       return this;
     } catch (e) {
-      logger.e('Bluetooth initialization error: $e');
+      print('Bluetooth initialization error: $e');
       rethrow;
     }
   }
 
   Future<void> connectToDevice(String address) async {
     try {
-      connection = await BluetoothConnection.toAddress(address);
+      connection = await BluetoothConnection.toAddress(
+          address,
+      );
+
       _isConnected.value = true;
-      
+
       connection!.input!.listen((Uint8List data) {
-        final message = utf8.decode(data);
-        _receivedData.value = message;
-        logger.d('Received data: ${utf8.decode(data)}');
+        // 1. Handle raw bytes properly
+        final message = String.fromCharCodes(data);
+        _buffer += message;
+
+        // 2. Split by newline (common serial terminator)
+        if (_buffer.contains('\n')) {
+          final lines = _buffer.split('\n');
+          _buffer = lines.removeLast(); // Save incomplete part
+
+          for (final line in lines) {
+            final trimmed = line.trim();
+            if (trimmed.isNotEmpty) {
+              _receivedDataController.add(trimmed);
+              print('Received: "$trimmed" HEX: ${_stringToHex(trimmed)}');
+            }
+          }
+        }
       }).onDone(() {
-        logger.i('Connection done');
+        print('Connection closed');
         _isConnected.value = false;
+        _buffer = '';
       });
     } catch (e) {
-      logger.e('Connection error: $e');
+      print('Connection error: $e');
       _isConnected.value = false;
     }
   }
+
+  String _stringToHex(String input) {
+    return input.codeUnits.map((e) => e.toRadixString(16).padLeft(2, '0')).join(' ');
+  }
+
 
   Future<void> disconnect() async {
     try {
